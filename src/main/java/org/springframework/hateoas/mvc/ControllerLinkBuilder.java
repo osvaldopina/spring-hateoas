@@ -17,9 +17,6 @@ package org.springframework.hateoas.mvc;
 
 import static org.springframework.util.StringUtils.*;
 
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Delegate;
-
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Map;
@@ -53,16 +50,20 @@ import org.springframework.web.util.UriTemplate;
  * @author Kevin Conaway
  * @author Andrew Naydyonock
  * @author Oliver Trosien
+ * @author Josh Ghiloni
+ * @author Greg Turnquist
  */
 public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuilder> {
 
 	private static final String REQUEST_ATTRIBUTES_MISSING = "Could not find current request via RequestContextHolder. Is this being called from a Spring MVC handler?";
-	private static final CachingAnnotationMappingDiscoverer DISCOVERER = new CachingAnnotationMappingDiscoverer(
-			new AnnotationMappingDiscoverer(RequestMapping.class));
+	private static final AnnotationMappingDiscoverer DISCOVERER = new AnnotationMappingDiscoverer(RequestMapping.class);
 	private static final ControllerLinkBuilderFactory FACTORY = new ControllerLinkBuilderFactory();
 	private static final CustomUriTemplateHandler HANDLER = new CustomUriTemplateHandler();
+	private static final Map<String, UriTemplate> TEMPLATES = new ConcurrentReferenceHashMap<String, UriTemplate>();
 
 	private final TemplateVariables variables;
+
+	private static MappingDiscoverer discovererOverride = null;
 
 	/**
 	 * Creates a new {@link ControllerLinkBuilder} using the given {@link UriComponentsBuilder}.
@@ -77,19 +78,29 @@ public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuil
 	}
 
 	/**
-	 * Creates a new {@link ControllerLinkBuilder} using the given {@link UriComponents}.
+	 * Creates a new {@link ControllerLinkBuilder} using the given {@link UriComponents}, {@link TemplateVariables}, and
+	 * {@link MappingDiscoverer}.
 	 *
 	 * @param uriComponents must not be {@literal null}.
 	 */
-	ControllerLinkBuilder(UriComponents uriComponents) {
-		this(uriComponents, TemplateVariables.NONE);
-	}
-
-	ControllerLinkBuilder(UriComponents uriComponents, TemplateVariables variables) {
+	ControllerLinkBuilder(UriComponents uriComponents, TemplateVariables variables, MappingDiscoverer discoverer) {
 
 		super(uriComponents);
 
 		this.variables = variables;
+		this.discovererOverride = discoverer;
+	}
+
+	public static void setDiscoverer(MappingDiscoverer discoverer) {
+		discovererOverride = discoverer;
+	}
+
+	public static void clearDiscoverer() {
+		discovererOverride = null;
+	}
+
+	private static MappingDiscoverer getDiscoverer() {
+		return (discovererOverride != null ? discovererOverride : DISCOVERER);
 	}
 
 	/**
@@ -116,7 +127,7 @@ public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuil
 		Assert.notNull(controller, "Controller must not be null!");
 		Assert.notNull(parameters, "Parameters must not be null!");
 
-		String mapping = DISCOVERER.getMapping(controller);
+		String mapping = getDiscoverer().getMapping(controller);
 
 		UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(mapping == null ? "/" : mapping);
 		UriComponents uriComponents = HANDLER.expandAndEncode(builder, parameters);
@@ -138,7 +149,7 @@ public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuil
 		Assert.notNull(controller, "Controller must not be null!");
 		Assert.notNull(parameters, "Parameters must not be null!");
 
-		String mapping = DISCOVERER.getMapping(controller);
+		String mapping = getDiscoverer().getMapping(controller);
 
 		UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(mapping == null ? "/" : mapping);
 		UriComponents uriComponents = HANDLER.expandAndEncode(builder, parameters);
@@ -161,7 +172,7 @@ public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuil
 		Assert.notNull(controller, "Controller type must not be null!");
 		Assert.notNull(method, "Method must not be null!");
 
-		UriTemplate template = DISCOVERER.getMappingAsUriTemplate(controller, method);
+		UriTemplate template = getUriTemplate(getDiscoverer().getMapping(controller, method));
 		URI uri = template.expand(parameters);
 
 		return new ControllerLinkBuilder(getBuilder()).slash(uri);
@@ -295,25 +306,16 @@ public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuil
 		return servletRequest;
 	}
 
-	@RequiredArgsConstructor
-	private static class CachingAnnotationMappingDiscoverer implements MappingDiscoverer {
+	private static UriTemplate getUriTemplate(String mapping) {
 
-		private final @Delegate AnnotationMappingDiscoverer delegate;
-		private final Map<String, UriTemplate> templates = new ConcurrentReferenceHashMap<String, UriTemplate>();
+		UriTemplate template = TEMPLATES.get(mapping);
 
-		public UriTemplate getMappingAsUriTemplate(Class<?> type, Method method) {
-
-			String mapping = delegate.getMapping(type, method);
-
-			UriTemplate template = templates.get(mapping);
-
-			if (template == null) {
-				template = new UriTemplate(mapping);
-				templates.put(mapping, template);
-			}
-
-			return template;
+		if (template == null) {
+			template = new UriTemplate(mapping);
+			TEMPLATES.put(mapping, template);
 		}
+
+		return template;
 	}
 
 	private static class CustomUriTemplateHandler extends DefaultUriTemplateHandler {
