@@ -16,6 +16,9 @@
 package org.springframework.hateoas;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +59,7 @@ public class Link implements Serializable {
 	@XmlAttribute private String rel;
 	@XmlAttribute private String href;
 	@XmlTransient @JsonIgnore private UriTemplate template;
+	@XmlTransient @JsonIgnore private List<Affordance> affordances;
 
 	/**
 	 * Creates a new link to the given URI with the self rel.
@@ -91,13 +95,23 @@ public class Link implements Serializable {
 		this.template = template;
 		this.href = template.toString();
 		this.rel = rel;
+		this.affordances = new ArrayList<Affordance>();
+	}
+
+	public Link(String href, String rel, List<Affordance> affordances) {
+		
+		this(href, rel);
+
+		Assert.notNull(affordances, "affordances must not be null!");
+		
+		this.affordances = affordances;
 	}
 
 	/**
 	 * Empty constructor required by the marshalling framework.
 	 */
 	protected Link() {
-
+		this.affordances = new ArrayList<Affordance>();
 	}
 
 	/**
@@ -119,6 +133,15 @@ public class Link implements Serializable {
 	}
 
 	/**
+	 * Returns safe copy of {@link Affordance}s.
+	 * 
+	 * @return
+	 */
+	public Collection<Affordance> getAffordances() {
+		return Collections.unmodifiableCollection(this.affordances);
+	}
+
+	/**
 	 * Returns a {@link Link} pointing to the same URI but with the given relation.
 	 * 
 	 * @param rel must not be {@literal null} or empty.
@@ -136,6 +159,22 @@ public class Link implements Serializable {
 	public Link withSelfRel() {
 		return withRel(Link.REL_SELF);
 	}
+
+	/**
+	 * Creates new {@link Link} with an additional {@link Affordance}.
+	 *
+	 * @param affordance
+	 * @return
+	 */
+	public Link withAffordance(Affordance affordance) {
+
+		List<Affordance> newAffordances = new ArrayList<Affordance>();
+		newAffordances.addAll(this.affordances);
+		newAffordances.add(affordance);
+
+		return new Link(this.href, this.rel, newAffordances);
+	}
+
 
 	/**
 	 * Returns the variable names contained in the template.
@@ -212,7 +251,12 @@ public class Link implements Serializable {
 
 		Link that = (Link) obj;
 
-		return this.href.equals(that.href) && this.rel.equals(that.rel);
+		return
+			this.href.equals(that.href)
+				&&
+				this.rel.equals(that.rel)
+				&&
+				this.affordances.equals(that.affordances);
 	}
 
 	/* 
@@ -225,6 +269,7 @@ public class Link implements Serializable {
 		int result = 17;
 		result += 31 * href.hashCode();
 		result += 31 * rel.hashCode();
+		result += 31 * affordances.hashCode();
 		return result;
 	}
 

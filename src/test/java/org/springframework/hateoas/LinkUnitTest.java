@@ -191,4 +191,22 @@ public class LinkUnitTest {
 		assertThat(Link.valueOf("<http://localhost>; rel=\"http://acme.com/rels/foo-bar\"").getRel(),
 				is("http://acme.com/rels/foo-bar"));
 	}
+
+	@Test
+	public void linkWithAffordancesShouldWorkProperly() {
+
+		Link originalLink = new Link("/foo");
+		Link linkWithAffordance = originalLink.withAffordance(new Affordance());
+		Link linkWithTwoAffordances = linkWithAffordance.withAffordance(new Affordance());
+
+		assertThat(originalLink.getAffordances().size(), is(0));
+		assertThat(linkWithAffordance.getAffordances().size(), is(1));
+		assertThat(linkWithTwoAffordances.getAffordances().size(), is(2));
+
+		assertThat(originalLink.hashCode(), not(equalTo(linkWithAffordance.hashCode())));
+		assertThat(originalLink, not(equalTo(linkWithAffordance)));
+
+		assertThat(linkWithAffordance.hashCode(), not(equalTo(linkWithTwoAffordances.hashCode())));
+		assertThat(linkWithAffordance, not(equalTo(linkWithTwoAffordances)));
+	}
 }
