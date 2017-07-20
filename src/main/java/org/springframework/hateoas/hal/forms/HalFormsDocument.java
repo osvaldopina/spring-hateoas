@@ -48,18 +48,26 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 //@JsonDeserialize(using = HalFormsDocumentDeserializer.class)
 public class HalFormsDocument {
 
-	@Singular List<Link> links;
+	private Object content;
 
-	@Singular List<Template> templates;
+	@Singular private List<Link> links;
 
-	HalFormsDocument(List<Link> links, List<Template> templates) {
-		
+	@Singular private List<Template> templates;
+
+	HalFormsDocument(Object content, List<Link> links, List<Template> templates) {
+
+		this.content = content;
 		this.links = links;
 		this.templates = templates;
 	}
 
 	HalFormsDocument() {
-		this(new ArrayList<Link>(), new ArrayList<Template>());
+		this(null, new ArrayList<Link>(), new ArrayList<Template>());
+	}
+
+	@JsonInclude(Include.NON_NULL)
+	public Object getContent() {
+		return this.content;
 	}
 
 	@JsonProperty("_links")
@@ -67,7 +75,7 @@ public class HalFormsDocument {
 	@JsonSerialize(using = HalLinkListSerializer.class)
 	@JsonDeserialize(using = HalLinkListDeserializer.class)
 	public List<Link> getLinks() {
-		return links;
+		return this.links;
 	}
 
 	@JsonProperty("_templates")
@@ -75,7 +83,7 @@ public class HalFormsDocument {
 	@JsonSerialize(using = HalFormsTemplateListSerializer.class)
 	@JsonDeserialize(using = HalFormsTemplateListDeserializer.class)
 	public List<Template> getTemplates() {
-		return templates;
+		return this.templates;
 	}
 
 	@JsonIgnore

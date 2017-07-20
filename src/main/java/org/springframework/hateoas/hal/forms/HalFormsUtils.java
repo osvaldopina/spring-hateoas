@@ -15,11 +15,19 @@
  */
 package org.springframework.hateoas.hal.forms;
 
+import java.beans.IntrospectionException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
-import org.springframework.hateoas.Link;
+import org.springframework.hateoas.Resource;
 import org.springframework.hateoas.ResourceSupport;
+import org.springframework.hateoas.Resources;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -28,31 +36,97 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 final class HalFormsUtils {
 
-	public static Object toHalFormsDocument(Object object, ObjectMapper objectMapper) {
+	public static HalFormsDocument toHalFormsDocument(Object object, ObjectMapper objectMapper) {
 
 		if (object == null) {
 			return null;
 		}
 
-		if (object instanceof ResourceSupport) {
-			ResourceSupport rs = (ResourceSupport) object;
+		if (object instanceof HalFormsDocument) {
+			return (HalFormsDocument) object;
+		}
 
-			List<Link> links = new ArrayList<Link>();
-			List<Template> templates = new ArrayList<Template>();
-
-			process(rs, links, templates, objectMapper);
-
-			return HalFormsDocument.halFormsDocument()
-				.links(links)
-				.templates(templates)
-				.build();
+		if (object instanceof Resources) {
+			return toHalFormsDocument((Resources<?>) object);
+		} else if (object instanceof Resource) {
+			return toHalFormsDocument((Resource<?>) object);
+		} else if (object instanceof ResourceSupport) {
+			return toHalFormsDocument((ResourceSupport) object);
 		} else { // bean
-			return object;
+			throw new RuntimeException("Don't know how to convert a " + object.getClass().getSimpleName() +
+				" to " + HalFormsDocument.class.getSimpleName());
 		}
 	}
 
-	private static void process(ResourceSupport resource, List<Link> links, List<Template> templates,
-								ObjectMapper objectMapper) {
+	private static HalFormsDocument toHalFormsDocument(Resources<?> resources) {
 
+		return HalFormsDocument.halFormsDocument()
+			.content(resources.getContent())
+			.links(resources.getLinks())
+			.templates(new ArrayList<Template>())
+			.build();
+	}
+
+	/**
+	 * Transform a {@link Resource} into a {@link HalFormsDocument}.
+	 *
+	 * @param resource
+	 * @return
+	 */
+	private static HalFormsDocument toHalFormsDocument(Resource<?> resource) {
+
+		return HalFormsDocument.halFormsDocument()
+			.content(resource.getContent())
+			.links(resource.getLinks())
+			.templates(new ArrayList<Template>())
+			.build();
+	}
+
+	/**
+	 * Transform a {@link ResourceSupport} into a {@link HalFormsDocument}.
+	 *
+	 * @param rs
+	 * @return
+	 */
+	private static HalFormsDocument toHalFormsDocument(ResourceSupport rs) {
+
+		Map<String, Object> content = new HashMap<String, Object>();
+
+		Set<String> propertiesToIgnore = new HashSet<String>();
+		propertiesToIgnore.add("class");
+		propertiesToIgnore.add("id");
+		propertiesToIgnore.add("links");
+
+		for (PropertyDescriptor descriptor : getPropertyDescriptors(rs)) {
+			if (!propertiesToIgnore.contains(descriptor.getName())) {
+				try {
+					content.put(descriptor.getName(), descriptor.getReadMethod().invoke(rs));
+				} catch (IllegalAccessException e) {
+					throw new RuntimeException(e);
+				} catch (InvocationTargetException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}
+
+		return HalFormsDocument.halFormsDocument()
+			.content(content)
+			.links(rs.getLinks())
+			.templates(new ArrayList<Template>())
+			.build();
+	}
+
+	/**
+	 * Look up Java bean properties for a given bean
+	 *
+	 * @param bean
+	 * @return
+	 */
+	private static PropertyDescriptor[] getPropertyDescriptors(Object bean) {
+		try {
+			return Introspector.getBeanInfo(bean.getClass()).getPropertyDescriptors();
+		} catch (IntrospectionException e) {
+			throw new RuntimeException("failed to get property descriptors of bean " + bean, e);
+		}
 	}
 }

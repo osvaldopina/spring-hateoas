@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import lombok.Data;
-import lombok.experimental.Wither;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -93,15 +91,8 @@ public class HalFormsWebMvcTest {
 			.andExpect(jsonPath("$._links['self'].href", is("http://localhost/employees/0")))
 			.andExpect(jsonPath("$._links['put'].href", is("http://localhost/employees/0")))
 			.andExpect(jsonPath("$._links['patch'].href", is("http://localhost/employees/0")))
-			.andExpect(jsonPath("$._links['employees'].href", is("http://localhost/employees")));
-	}
-
-	@Data
-	@Wither
-	static class Employee {
-
-		private final String name;
-		private final String role;
+			.andExpect(jsonPath("$._links['employees'].href", is("http://localhost/employees")))
+			.andExpect(jsonPath("$._templates.*", hasSize(1)));
 	}
 
 	@RestController
